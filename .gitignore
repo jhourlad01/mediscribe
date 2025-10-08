@@ -31,8 +31,8 @@ venv/
 env/
 ENV/
 
-uploads/*
-!uploads/.gitkeep
+app/api/uploads/*
+!app/api/uploads/.gitkeep
 
 .cache/
 .vscode/

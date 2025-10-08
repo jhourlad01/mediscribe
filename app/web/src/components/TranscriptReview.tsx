@@ -50,6 +50,7 @@ export default function TranscriptReview({
   const [editingWordIndex, setEditingWordIndex] = useState(-1)
   const [editingWordValue, setEditingWordValue] = useState('')
   const [words, setWords] = useState<Word[]>([])
+  const [textareaValue, setTextareaValue] = useState('')
 
   const audioRef = useRef<HTMLAudioElement | null>(null)
 
@@ -74,6 +75,7 @@ export default function TranscriptReview({
       }
       
       setEditedText(finalText)
+      setTextareaValue(finalText)
       
       if (audioRef.current) {
         audioRef.current.src = `${process.env.NEXT_PUBLIC_API_URL}/api/audio/${transcript._id}`
@@ -132,7 +134,7 @@ export default function TranscriptReview({
     }
   }
 
-  const handleWordClick = (word: Word, index: number) => {
+  const handleWordClick = (word: Word, index: number, shouldEdit: boolean = true) => {
     if (audioRef.current) {
       // Pause playback
       if (isPlaying) {
@@ -143,9 +145,33 @@ export default function TranscriptReview({
       audioRef.current.currentTime = word.start
       setCurrentTime(word.start)
     }
-    // Start editing this word
-    setEditingWordIndex(index)
-    setEditingWordValue(word.word)
+    // Start editing this word only if requested (for top navigator)
+    if (shouldEdit) {
+      setEditingWordIndex(index)
+      setEditingWordValue(word.word)
+    }
+  }
+
+  const handleTextareaBlur = async () => {
+    if (textareaValue === editedText) return // No changes
+    
+    setEditedText(textareaValue)
+    
+    // Save to database
+    try {
+      setSaving(true)
+      await api.transcripts.update(transcript._id, {
+        finalTranscript: textareaValue,
+        editedBy: 'Doctor',
+        status: 'reviewed',
+        reviewedAt: new Date().toISOString(),
+        reviewedBy: 'Doctor'
+      })
+    } catch (error) {
+      console.error('Failed to save textarea edit:', error)
+    } finally {
+      setSaving(false)
+    }
   }
 
   const handleWordBlur = async () => {
@@ -159,9 +185,10 @@ export default function TranscriptReview({
     }
     setWords(updatedWords)
     
-    // Update the edited text
+    // Update the edited text and textarea
     const newText = updatedWords.map(w => w.word).join(' ')
     setEditedText(newText)
+    setTextareaValue(newText)
     
     // Save to database
     try {
@@ -254,98 +281,24 @@ export default function TranscriptReview({
         </Box>
 
         <Box>
-          {words.length > 0 ? (
-            <Paper
-              elevation={1}
-              sx={{
-                p: 3,
-                minHeight: 400,
-                overflow: 'auto',
-                bgcolor: 'grey.50',
-              }}
-            >
-              <Typography
-                variant="body1"
-                sx={{
-                  lineHeight: 2.5,
-                  fontSize: '1.1rem',
-                }}
-              >
-                {words.map((word, index) => (
-                  editingWordIndex === index ? (
-                    <input
-                      key={index}
-                      type="text"
-                      value={editingWordValue}
-                      onChange={(e) => setEditingWordValue(e.target.value)}
-                      onBlur={handleWordBlur}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          e.currentTarget.blur()
-                        }
-                      }}
-                      autoFocus
-                      style={{
-                        fontSize: '1.1rem',
-                        padding: '2px 6px',
-                        border: '2px solid #1976d2',
-                        borderRadius: '4px',
-                        outline: 'none',
-                        backgroundColor: 'white',
-                        minWidth: '60px',
-                        fontFamily: 'inherit',
-                      }}
-                    />
-                  ) : (
-                    <span
-                      key={index}
-                      onClick={() => handleWordClick(word, index)}
-                      style={{
-                        cursor: 'pointer',
-                        padding: '2px 6px',
-                        borderRadius: '4px',
-                        backgroundColor: index === activeWordIndex ? '#1976d2' : 'transparent',
-                        color: index === activeWordIndex ? 'white' : 'inherit',
-                        transition: 'all 0.2s',
-                        display: 'inline-block',
-                        margin: '0 2px',
-                      }}
-                      onMouseEnter={(e) => {
-                        if (index !== activeWordIndex && index !== editingWordIndex) {
-                          e.currentTarget.style.backgroundColor = '#e3f2fd'
-                        }
-                      }}
-                      onMouseLeave={(e) => {
-                        if (index !== activeWordIndex) {
-                          e.currentTarget.style.backgroundColor = 'transparent'
-                        }
-                      }}
-                    >
-                      {word.word}
-                    </span>
-                  )
-                ))}
-              </Typography>
-              <Typography variant="caption" color="text.secondary" sx={{ mt: 3, display: 'block' }}>
-                💡 Click any word to edit it and jump to that timestamp. Press Enter or click away to save.
-              </Typography>
-              {saving && (
-                <Typography variant="caption" color="primary" sx={{ mt: 1, display: 'block' }}>
-                  Saving...
-                </Typography>
-              )}
-            </Paper>
-          ) : (
-            <TextField
-              fullWidth
-              multiline
-              rows={15}
-              value={editedText}
-              onChange={(e) => setEditedText(e.target.value)}
-              placeholder="Edit transcript..."
-              variant="outlined"
-              label="Edit Transcript"
-            />
+          <TextField
+            fullWidth
+            multiline
+            rows={15}
+            value={textareaValue}
+            onChange={(e) => setTextareaValue(e.target.value)}
+            onBlur={handleTextareaBlur}
+            placeholder="Edit transcript..."
+            variant="outlined"
+            label="Edit Transcript"
+          />
+          <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+            Edit the transcript freely. Changes save automatically when you click away.
+          </Typography>
+          {saving && (
+            <Typography variant="caption" color="primary" sx={{ mt: 1, display: 'block' }}>
+              Saving...
+            </Typography>
           )}
         </Box>
       </DialogContent>

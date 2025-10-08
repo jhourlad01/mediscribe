@@ -37,6 +37,7 @@ export default function PatientsPage() {
     lastName: '',
     dateOfBirth: '',
     gender: '',
+    medicalRecordNumber: '',
     email: '',
     phone: '',
   })
@@ -78,6 +79,7 @@ export default function PatientsPage() {
         lastName: '',
         dateOfBirth: '',
         gender: '',
+        medicalRecordNumber: '',
         email: '',
         phone: '',
       })
@@ -216,6 +218,12 @@ export default function PatientsPage() {
         <DialogTitle>Create New Patient</DialogTitle>
         <DialogContent>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 2 }}>
+            <TextField
+              label="Medical Record Number (MRN)"
+              value={newPatient.medicalRecordNumber}
+              onChange={(e) => setNewPatient({ ...newPatient, medicalRecordNumber: e.target.value })}
+              placeholder="e.g., MRN-12345"
+            />
             <TextField
               label="First Name"
               required

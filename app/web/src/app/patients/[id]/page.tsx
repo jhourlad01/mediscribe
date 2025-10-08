@@ -25,6 +25,7 @@ import {
   MenuItem,
   ListItemIcon,
   ListItemText,
+  Divider,
 } from '@mui/material'
 import ArrowBackIcon from '@mui/icons-material/ArrowBack'
 import MicIcon from '@mui/icons-material/Mic'
@@ -52,6 +53,8 @@ export default function PatientDetailsPage() {
   const [selectedTranscript, setSelectedTranscript] = useState<any>(null)
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' | 'warning' })
   const [retrying, setRetrying] = useState<string | null>(null)
+  const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null)
+  const [menuTranscriptId, setMenuTranscriptId] = useState<string | null>(null)
 
   useEffect(() => {
     loadPatientData()
@@ -100,6 +103,7 @@ export default function PatientDetailsPage() {
   }
 
   const handleRetryTranscription = async (transcriptId: string) => {
+    setMenuAnchor(null)
     setRetrying(transcriptId)
     setSnackbar({ open: true, message: 'Redoing transcription...', severity: 'info' as any })
     try {
@@ -116,6 +120,17 @@ export default function PatientDetailsPage() {
     } finally {
       setRetrying(null)
     }
+  }
+
+  const handleMenuOpen = (event: React.MouseEvent<HTMLElement>, transcriptId: string) => {
+    event.stopPropagation()
+    setMenuAnchor(event.currentTarget)
+    setMenuTranscriptId(transcriptId)
+  }
+
+  const handleMenuClose = () => {
+    setMenuAnchor(null)
+    setMenuTranscriptId(null)
   }
 
   if (loading || !patient) {
@@ -155,10 +170,6 @@ export default function PatientDetailsPage() {
                 {patient.medicalRecordNumber && (
                   <Chip label={`MRN: ${patient.medicalRecordNumber}`} variant="outlined" />
                 )}
-                <Chip
-                  label={patient.isActive ? 'Active' : 'Inactive'}
-                  color={patient.isActive ? 'success' : 'default'}
-                />
               </Box>
               {(patient.email || patient.phone) && (
                 <Box sx={{ mt: 2, display: 'flex', gap: 2, flexWrap: 'wrap' }}>
@@ -242,7 +253,12 @@ export default function PatientDetailsPage() {
                 </TableHead>
                 <TableBody>
                   {transcripts.map((transcript) => (
-                    <TableRow key={transcript._id} hover>
+                    <TableRow 
+                      key={transcript._id} 
+                      hover
+                      onClick={() => transcript.status !== 'failed' && handleReviewTranscript(transcript)}
+                      sx={{ cursor: transcript.status !== 'failed' ? 'pointer' : 'default' }}
+                    >
                       <TableCell>
                         <Typography variant="body2">
                           {new Date(transcript.createdAt).toLocaleDateString()}
@@ -283,32 +299,10 @@ export default function PatientDetailsPage() {
                       <TableCell align="right">
                         <IconButton
                           size="small"
-                          color={transcript.status === 'failed' ? 'error' : 'default'}
-                          onClick={() => handleRetryTranscription(transcript._id)}
-                          title="Redo Transcription"
+                          onClick={(e) => handleMenuOpen(e, transcript._id)}
                           disabled={retrying === transcript._id}
                         >
-                          {retrying === transcript._id ? <CircularProgress size={20} /> : <RefreshIcon />}
-                        </IconButton>
-                        {transcript.status !== 'failed' && (
-                          <IconButton
-                            size="small"
-                            color="primary"
-                            onClick={() => handleReviewTranscript(transcript)}
-                            title="Review"
-                            disabled={retrying === transcript._id}
-                          >
-                            <EditIcon />
-                          </IconButton>
-                        )}
-                        <IconButton
-                          size="small"
-                          color="error"
-                          onClick={() => handleDeleteTranscript(transcript._id)}
-                          title="Delete"
-                          disabled={retrying === transcript._id}
-                        >
-                          <DeleteIcon />
+                          {retrying === transcript._id ? <CircularProgress size={20} /> : <MoreVertIcon />}
                         </IconButton>
                       </TableCell>
                     </TableRow>
@@ -319,6 +313,31 @@ export default function PatientDetailsPage() {
           )}
         </CardContent>
       </Card>
+
+      <Menu
+        anchorEl={menuAnchor}
+        open={Boolean(menuAnchor)}
+        onClose={handleMenuClose}
+      >
+        <MenuItem onClick={() => {
+          if (menuTranscriptId) handleRetryTranscription(menuTranscriptId)
+        }}>
+          <ListItemIcon>
+            <RefreshIcon fontSize="small" />
+          </ListItemIcon>
+          <ListItemText>Redo Transcription</ListItemText>
+        </MenuItem>
+        <Divider />
+        <MenuItem onClick={() => {
+          if (menuTranscriptId) handleDeleteTranscript(menuTranscriptId)
+          handleMenuClose()
+        }}>
+          <ListItemIcon>
+            <DeleteIcon fontSize="small" color="error" />
+          </ListItemIcon>
+          <ListItemText>Delete</ListItemText>
+        </MenuItem>
+      </Menu>
 
       <AudioUploadDialog
         open={uploadDialogOpen}

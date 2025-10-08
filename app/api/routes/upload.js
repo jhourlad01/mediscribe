@@ -1,6 +1,7 @@
 const express = require('express');
 const multer = require('multer');
 const path = require('path');
+const fs = require('fs');
 const { transcribeAudio } = require('../controllers/transcriptionController');
 
 const router = express.Router();
@@ -9,7 +10,19 @@ const uploadsDir = path.join(__dirname, '../uploads');
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, uploadsDir);
+    const patientId = req.body.patientId;
+    if (!patientId) {
+      return cb(new Error('Patient ID is required'));
+    }
+    
+    const patientUploadDir = path.join(uploadsDir, patientId, 'transcriptions', 'audio');
+    
+    // Create directories if they don't exist
+    if (!fs.existsSync(patientUploadDir)) {
+      fs.mkdirSync(patientUploadDir, { recursive: true });
+    }
+    
+    cb(null, patientUploadDir);
   },
   filename: (req, file, cb) => {
     cb(null, `${Date.now()}-${file.originalname}`);
