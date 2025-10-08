@@ -9,7 +9,7 @@ except ImportError:
     print(json.dumps({"error": "Whisper not installed. Run: pip install openai-whisper"}), file=sys.stderr)
     sys.exit(1)
 
-def transcribe_audio(audio_path, model_name="base"):
+def transcribe_audio(audio_path, model_name="base", language="en"):
     try:
         print(f"Checking audio file: {audio_path}", file=sys.stderr)
         print(f"File exists: {os.path.exists(audio_path)}", file=sys.stderr)
@@ -21,8 +21,8 @@ def transcribe_audio(audio_path, model_name="base"):
         
         print(f"Loading Whisper model: {model_name}", file=sys.stderr)
         model = whisper.load_model(model_name)
-        print(f"Transcribing audio...", file=sys.stderr)
-        result = model.transcribe(audio_path, word_timestamps=True)
+        print(f"Transcribing audio in language: {language}...", file=sys.stderr)
+        result = model.transcribe(audio_path, word_timestamps=True, language=language)
         print(f"Transcription complete!", file=sys.stderr)
         
         words_with_timestamps = []
@@ -51,8 +51,9 @@ if __name__ == "__main__":
     
     audio_path = sys.argv[1]
     model_name = os.getenv("WHISPER_MODEL", "small")
+    language = os.getenv("WHISPER_LANGUAGE", "en")
     
-    result = transcribe_audio(audio_path, model_name)
+    result = transcribe_audio(audio_path, model_name, language)
     
     if "error" in result:
         print(json.dumps(result), file=sys.stderr)

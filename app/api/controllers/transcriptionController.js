@@ -21,7 +21,7 @@ exports.transcribeAudio = async (req, res) => {
     console.log('Patient ID:', patientId);
 
     const audioPath = path.resolve(req.file.path);
-    const whisperScript = path.join(__dirname, '../../mediscribe-ai/transcribe.py');
+    const whisperScript = path.join(__dirname, '../../ai/transcribe.py');
     
     console.log('Starting Whisper transcription...');
     console.log('Script path:', whisperScript);

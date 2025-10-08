@@ -19,7 +19,6 @@ import {
 import PlayArrowIcon from '@mui/icons-material/PlayArrow'
 import PauseIcon from '@mui/icons-material/Pause'
 import VolumeUpIcon from '@mui/icons-material/VolumeUp'
-import SaveIcon from '@mui/icons-material/Save'
 import { api } from '@/lib/api'
 
 interface Word {
@@ -47,16 +46,34 @@ export default function TranscriptReview({
   const [volume, setVolume] = useState(1)
   const [activeWordIndex, setActiveWordIndex] = useState(-1)
   const [editedText, setEditedText] = useState('')
-  const [isEditing, setIsEditing] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [editingWordIndex, setEditingWordIndex] = useState(-1)
+  const [editingWordValue, setEditingWordValue] = useState('')
+  const [words, setWords] = useState<Word[]>([])
 
   const audioRef = useRef<HTMLAudioElement | null>(null)
-  const wordsRef = useRef<Word[]>([])
 
   useEffect(() => {
     if (transcript && open) {
-      wordsRef.current = transcript.wordTimestamps || []
-      setEditedText(transcript.finalTranscript || transcript.validatedTranscript || transcript.whisperTranscript || '')
+      const originalWords = transcript.wordTimestamps || []
+      const finalText = transcript.finalTranscript || transcript.validatedTranscript || transcript.whisperTranscript || ''
+      
+      // If finalTranscript exists and differs from the original, reconstruct words from it
+      const originalText = originalWords.map(w => w.word).join(' ')
+      if (finalText !== originalText && originalWords.length > 0) {
+        // Split finalTranscript by spaces and map to word objects, keeping original timestamps
+        const finalWords = finalText.split(' ')
+        const reconstructedWords = finalWords.map((word, index) => ({
+          word: word,
+          start: originalWords[index]?.start || 0,
+          end: originalWords[index]?.end || 0
+        }))
+        setWords(reconstructedWords)
+      } else {
+        setWords(originalWords)
+      }
+      
+      setEditedText(finalText)
       
       if (audioRef.current) {
         audioRef.current.src = `${process.env.NEXT_PUBLIC_API_URL}/api/audio/${transcript._id}`
@@ -86,7 +103,6 @@ export default function TranscriptReview({
   }, [transcript, open])
 
   const updateActiveWord = (time: number) => {
-    const words = wordsRef.current
     const index = words.findIndex((w) => time >= w.start && time <= w.end)
     setActiveWordIndex(index)
   }
@@ -116,14 +132,54 @@ export default function TranscriptReview({
     }
   }
 
-  const handleWordClick = (word: Word) => {
+  const handleWordClick = (word: Word, index: number) => {
     if (audioRef.current) {
+      // Pause playback
+      if (isPlaying) {
+        audioRef.current.pause()
+        setIsPlaying(false)
+      }
+      // Jump to word timestamp
       audioRef.current.currentTime = word.start
       setCurrentTime(word.start)
-      if (!isPlaying) {
-        audioRef.current.play()
-        setIsPlaying(true)
-      }
+    }
+    // Start editing this word
+    setEditingWordIndex(index)
+    setEditingWordValue(word.word)
+  }
+
+  const handleWordBlur = async () => {
+    if (editingWordIndex === -1) return
+    
+    // Update the word in the words array
+    const updatedWords = [...words]
+    updatedWords[editingWordIndex] = {
+      ...updatedWords[editingWordIndex],
+      word: editingWordValue
+    }
+    setWords(updatedWords)
+    
+    // Update the edited text
+    const newText = updatedWords.map(w => w.word).join(' ')
+    setEditedText(newText)
+    
+    // Save to database
+    try {
+      setSaving(true)
+      await api.transcripts.update(transcript._id, {
+        finalTranscript: newText,
+        editedBy: 'Doctor',
+        status: 'reviewed',
+        reviewedAt: new Date().toISOString(),
+        reviewedBy: 'Doctor'
+      })
+      // Successfully saved
+    } catch (error) {
+      console.error('Failed to save word edit:', error)
+    } finally {
+      setSaving(false)
+      setEditingWordIndex(-1)
+      setEditingWordValue('')
     }
   }
 
@@ -133,30 +189,12 @@ export default function TranscriptReview({
     return `${mins}:${secs.toString().padStart(2, '0')}`
   }
 
-  const handleSave = async () => {
-    try {
-      setSaving(true)
-      await api.transcripts.update(transcript._id, {
-        finalTranscript: editedText,
-        editedBy: 'Doctor',
-        status: 'reviewed',
-        reviewedAt: new Date().toISOString(),
-        reviewedBy: 'Doctor'
-      })
-      onSave()
-    } catch (error) {
-      console.error('Failed to save:', error)
-    } finally {
-      setSaving(false)
-    }
-  }
-
   const handleClose = () => {
     if (audioRef.current) {
       audioRef.current.pause()
     }
     setIsPlaying(false)
-    setIsEditing(false)
+    onSave() // Refresh parent data
     onClose()
   }
 
@@ -166,21 +204,12 @@ export default function TranscriptReview({
     <Dialog open={open} onClose={handleClose} maxWidth="lg" fullWidth>
       <DialogTitle>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Typography variant="h6">Review Transcription</Typography>
-          <Box sx={{ display: 'flex', gap: 1 }}>
-            <Chip
-              label={transcript.status}
-              size="small"
-              color={transcript.status === 'completed' ? 'success' : 'default'}
-            />
-            <Button
-              variant={isEditing ? 'contained' : 'outlined'}
-              size="small"
-              onClick={() => setIsEditing(!isEditing)}
-            >
-              {isEditing ? 'View Mode' : 'Edit Mode'}
-            </Button>
-          </Box>
+          <Typography variant="h6">Review & Edit Transcription</Typography>
+          <Chip
+            label={transcript.status}
+            size="small"
+            color={transcript.status === 'completed' ? 'success' : 'default'}
+          />
         </Box>
       </DialogTitle>
 
@@ -224,63 +253,89 @@ export default function TranscriptReview({
           </Paper>
         </Box>
 
-        {!isEditing ? (
-          <Paper
-            elevation={1}
-            sx={{
-              p: 3,
-              maxHeight: 400,
-              overflow: 'auto',
-              bgcolor: 'grey.50',
-            }}
-          >
-            <Typography
-              variant="body1"
+        <Box>
+          {words.length > 0 ? (
+            <Paper
+              elevation={1}
               sx={{
-                lineHeight: 2,
-                fontSize: '1.1rem',
-                wordSpacing: '0.3em',
+                p: 3,
+                minHeight: 400,
+                overflow: 'auto',
+                bgcolor: 'grey.50',
               }}
             >
-              {wordsRef.current.length > 0 ? (
-                wordsRef.current.map((word, index) => (
-                  <span
-                    key={index}
-                    onClick={() => handleWordClick(word)}
-                    style={{
-                      cursor: 'pointer',
-                      padding: '2px 4px',
-                      borderRadius: '4px',
-                      backgroundColor: index === activeWordIndex ? '#1976d2' : 'transparent',
-                      color: index === activeWordIndex ? 'white' : 'inherit',
-                      transition: 'all 0.2s',
-                      display: 'inline-block',
-                      margin: '0 2px',
-                    }}
-                    onMouseEnter={(e) => {
-                      if (index !== activeWordIndex) {
-                        e.currentTarget.style.backgroundColor = '#e3f2fd'
-                      }
-                    }}
-                    onMouseLeave={(e) => {
-                      if (index !== activeWordIndex) {
-                        e.currentTarget.style.backgroundColor = 'transparent'
-                      }
-                    }}
-                  >
-                    {word.word}
-                  </span>
-                ))
-              ) : (
-                <span>{editedText}</span>
+              <Typography
+                variant="body1"
+                sx={{
+                  lineHeight: 2.5,
+                  fontSize: '1.1rem',
+                }}
+              >
+                {words.map((word, index) => (
+                  editingWordIndex === index ? (
+                    <input
+                      key={index}
+                      type="text"
+                      value={editingWordValue}
+                      onChange={(e) => setEditingWordValue(e.target.value)}
+                      onBlur={handleWordBlur}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.currentTarget.blur()
+                        }
+                      }}
+                      autoFocus
+                      style={{
+                        fontSize: '1.1rem',
+                        padding: '2px 6px',
+                        border: '2px solid #1976d2',
+                        borderRadius: '4px',
+                        outline: 'none',
+                        backgroundColor: 'white',
+                        minWidth: '60px',
+                        fontFamily: 'inherit',
+                      }}
+                    />
+                  ) : (
+                    <span
+                      key={index}
+                      onClick={() => handleWordClick(word, index)}
+                      style={{
+                        cursor: 'pointer',
+                        padding: '2px 6px',
+                        borderRadius: '4px',
+                        backgroundColor: index === activeWordIndex ? '#1976d2' : 'transparent',
+                        color: index === activeWordIndex ? 'white' : 'inherit',
+                        transition: 'all 0.2s',
+                        display: 'inline-block',
+                        margin: '0 2px',
+                      }}
+                      onMouseEnter={(e) => {
+                        if (index !== activeWordIndex && index !== editingWordIndex) {
+                          e.currentTarget.style.backgroundColor = '#e3f2fd'
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        if (index !== activeWordIndex) {
+                          e.currentTarget.style.backgroundColor = 'transparent'
+                        }
+                      }}
+                    >
+                      {word.word}
+                    </span>
+                  )
+                ))}
+              </Typography>
+              <Typography variant="caption" color="text.secondary" sx={{ mt: 3, display: 'block' }}>
+                💡 Click any word to edit it and jump to that timestamp. Press Enter or click away to save.
+              </Typography>
+              {saving && (
+                <Typography variant="caption" color="primary" sx={{ mt: 1, display: 'block' }}>
+                  Saving...
+                </Typography>
               )}
-            </Typography>
-            <Typography variant="caption" color="text.secondary" sx={{ mt: 2, display: 'block' }}>
-              💡 Click any word to jump to that part of the audio
-            </Typography>
-          </Paper>
-        ) : (
-          <Box>
+            </Paper>
+          ) : (
             <TextField
               fullWidth
               multiline
@@ -289,25 +344,15 @@ export default function TranscriptReview({
               onChange={(e) => setEditedText(e.target.value)}
               placeholder="Edit transcript..."
               variant="outlined"
+              label="Edit Transcript"
             />
-            <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-              Switch to View Mode to see word-by-word synchronized playback
-            </Typography>
-          </Box>
-        )}
+          )}
+        </Box>
       </DialogContent>
 
       <DialogActions>
-        <Button onClick={handleClose} disabled={saving}>
+        <Button onClick={handleClose} disabled={saving} variant="contained">
           Close
-        </Button>
-        <Button
-          onClick={handleSave}
-          variant="contained"
-          startIcon={<SaveIcon />}
-          disabled={saving || !editedText.trim()}
-        >
-          {saving ? 'Saving...' : 'Save & Mark Reviewed'}
         </Button>
       </DialogActions>
     </Dialog>

@@ -57,16 +57,13 @@ router.post('/:id/retry-transcription', async (req, res) => {
       return res.status(404).json({ error: 'Transcript not found' });
     }
 
-    if (transcript.status !== 'failed') {
-      return res.status(400).json({ error: 'Transcript is not in failed state' });
-    }
-
     console.log('Retrying transcription for:', transcript._id);
     console.log('Audio path:', transcript.audioPath);
+    console.log('Previous status:', transcript.status);
     
     const { spawn } = require('child_process');
     const path = require('path');
-    const whisperScript = path.join(__dirname, '../../mediscribe-ai/transcribe.py');
+    const whisperScript = path.join(__dirname, '../../ai/transcribe.py');
     
     const pythonProcess = spawn('python', [whisperScript, transcript.audioPath]);
     

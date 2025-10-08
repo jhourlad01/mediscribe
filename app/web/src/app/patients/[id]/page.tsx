@@ -21,6 +21,10 @@ import {
   Snackbar,
   Alert,
   CircularProgress,
+  Menu,
+  MenuItem,
+  ListItemIcon,
+  ListItemText,
 } from '@mui/material'
 import ArrowBackIcon from '@mui/icons-material/ArrowBack'
 import MicIcon from '@mui/icons-material/Mic'
@@ -28,6 +32,7 @@ import UploadFileIcon from '@mui/icons-material/UploadFile'
 import DeleteIcon from '@mui/icons-material/Delete'
 import EditIcon from '@mui/icons-material/Edit'
 import RefreshIcon from '@mui/icons-material/Refresh'
+import MoreVertIcon from '@mui/icons-material/MoreVert'
 import { api } from '@/lib/api'
 import AudioUploadDialog from '@/components/AudioUploadDialog'
 import AudioRecorder from '@/components/AudioRecorder'
@@ -96,18 +101,18 @@ export default function PatientDetailsPage() {
 
   const handleRetryTranscription = async (transcriptId: string) => {
     setRetrying(transcriptId)
-    setSnackbar({ open: true, message: 'Retrying transcription...', severity: 'info' as any })
+    setSnackbar({ open: true, message: 'Redoing transcription...', severity: 'info' as any })
     try {
       const result = await api.transcripts.retryTranscription(transcriptId)
       if (result.success) {
-        setSnackbar({ open: true, message: '✓ Transcription successful!', severity: 'success' })
+        setSnackbar({ open: true, message: '✓ Transcription completed successfully!', severity: 'success' })
       } else {
-        setSnackbar({ open: true, message: `Transcription failed: ${result.error || 'Install ffmpeg'}`, severity: 'error' })
+        setSnackbar({ open: true, message: `Transcription failed: ${result.error || 'Unknown error'}`, severity: 'error' })
       }
       await loadPatientData()
     } catch (error) {
-      console.error('Failed to retry transcription:', error)
-      setSnackbar({ open: true, message: 'Failed to retry transcription. Install ffmpeg?', severity: 'error' })
+      console.error('Failed to redo transcription:', error)
+      setSnackbar({ open: true, message: 'Failed to redo transcription. Check console for details.', severity: 'error' })
     } finally {
       setRetrying(null)
     }
@@ -276,17 +281,15 @@ export default function PatientDetailsPage() {
                         </Box>
                       </TableCell>
                       <TableCell align="right">
-                        {transcript.status === 'failed' && (
-                          <IconButton
-                            size="small"
-                            color="error"
-                            onClick={() => handleRetryTranscription(transcript._id)}
-                            title="Retry Transcription"
-                            disabled={retrying === transcript._id}
-                          >
-                            {retrying === transcript._id ? <CircularProgress size={20} /> : <RefreshIcon />}
-                          </IconButton>
-                        )}
+                        <IconButton
+                          size="small"
+                          color={transcript.status === 'failed' ? 'error' : 'default'}
+                          onClick={() => handleRetryTranscription(transcript._id)}
+                          title="Redo Transcription"
+                          disabled={retrying === transcript._id}
+                        >
+                          {retrying === transcript._id ? <CircularProgress size={20} /> : <RefreshIcon />}
+                        </IconButton>
                         {transcript.status !== 'failed' && (
                           <IconButton
                             size="small"

@@ -8,7 +8,7 @@ Local medical transcription application using Whisper AI, with Next.js frontend 
 /app
 ├── web/              # Next.js frontend (port 3000)
 ├── api/              # Node.js + Express backend (port 5000)
-└── mediscribe-ai/    # Python AI scripts (Whisper transcription)
+└── ai/               # Python AI scripts (Whisper transcription)
 ```
 
 ## Tech Stack
@@ -48,7 +48,7 @@ npm run dev
 ### 3. AI Setup
 
 ```bash
-cd mediscribe-ai
+cd ai
 pip install -r requirements.txt
 ```
 
@@ -59,6 +59,7 @@ pip install -r requirements.txt
 PORT=5000
 MONGO_URI=mongodb+srv://<user>:<password>@cluster0.mongodb.net/mediscribe
 WHISPER_MODEL=base
+WHISPER_LANGUAGE=en
 FRONTEND_URL=http://localhost:3000
 ```
 
@@ -187,7 +188,7 @@ app/
 │   ├── server.js
 │   └── package.json
 │
-├── mediscribe-ai/          # Python AI
+├── ai/                      # Python AI
 │   ├── transcribe.py       # Whisper integration
 │   ├── validate.py         # Ollama integration
 │   ├── requirements.txt
