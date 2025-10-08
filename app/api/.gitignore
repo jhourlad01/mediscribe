@@ -1,0 +1,11 @@
+node_modules/
+.env
+uploads/*.wav
+uploads/*.mp3
+uploads/*.m4a
+uploads/*.ogg
+uploads/*.flac
+!uploads/.gitkeep
+*.log
+.DS_Store
+
